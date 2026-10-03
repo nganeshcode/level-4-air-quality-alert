@@ -1,0 +1,6 @@
+*.db
+*.db-*
+.storage/
+home-assistant.log*
+fired.log
+__pycache__/

@@ -1,0 +1,37 @@
+# Outdoor AQI from the Open-Meteo Air-Quality API — keyless: no account, no API key, no device.
+#
+# >>> SET YOUR LOCATION <<<  Replace LAT and LON below with your coordinates.
+# Find them in Settings > System > General (your HA home location), or look up a
+# ZIP/postcode at https://www.latlong.net/  (example: latitude=37.77  longitude=-122.42).
+#
+# Produces: sensor.outdoor_aqi  (US AQI, 0-500), with pm2_5 as an attribute.
+
+rest:
+  - resource: "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=LAT&longitude=LON&current=us_aqi,pm2_5&timezone=auto"
+    scan_interval: 1800        # Open-Meteo updates hourly; poll every 30 min
+    sensor:
+      - name: "Outdoor AQI"
+        unique_id: openmeteo_outdoor_aqi
+        unit_of_measurement: "AQI"
+        state_class: measurement
+        icon: mdi:air-filter
+        availability: >-
+          {{ value_json is mapping and value_json.current is defined
+             and value_json.current.us_aqi is not none }}
+        value_template: >-
+          {{ (value_json.current.us_aqi | int)
+             if (value_json is mapping and value_json.current is defined
+                 and value_json.current.us_aqi is not none)
+             else none }}
+        json_attributes_path: "$.current"
+        json_attributes:
+          - pm2_5
+          - time
+
+# --- Optional: auto-use your HA home location instead of hardcoding LAT/LON ---
+# Replace the `resource:` line above with the `resource_template:` below. Caveat: on a
+# fresh HA restart the home zone may not be ready for the first fetch (sensor shows
+# "unknown" briefly), so also lower scan_interval (e.g. 300) so it refreshes quickly.
+#
+#    resource_template: >-
+#      https://air-quality-api.open-meteo.com/v1/air-quality?latitude={{ state_attr('zone.home','latitude') }}&longitude={{ state_attr('zone.home','longitude') }}&current=us_aqi,pm2_5&timezone=auto

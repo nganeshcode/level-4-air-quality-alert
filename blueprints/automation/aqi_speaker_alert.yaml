@@ -1,0 +1,113 @@
+blueprint:
+  name: Level 4 — AQI speaker alert
+  description: >-
+    Announce on your speakers when an AQI sensor crosses a threshold — once when it
+    rises above, once when it drops back below (edge-triggered, with an optional
+    debounce so it won't chatter around the line). Works with any numeric AQI sensor;
+    pairs with the keyless Open-Meteo "Outdoor AQI" sensor included in this repo.
+  domain: automation
+  source_url: https://github.com/nganeshcode/level-4-air-quality-alert/blob/main/blueprints/automation/aqi_speaker_alert.yaml
+  input:
+    aqi_sensor:
+      name: AQI sensor
+      description: The sensor whose numeric state is the AQI (e.g. sensor.outdoor_aqi).
+      selector:
+        entity:
+          domain: sensor
+    threshold:
+      name: AQI threshold
+      description: Announce when the AQI crosses this number.
+      default: 80
+      selector:
+        number:
+          min: 0
+          max: 500
+          step: 1
+          mode: box
+          unit_of_measurement: AQI
+    speakers:
+      name: Speaker(s)
+      description: One or more media players to announce on.
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    tts_service:
+      name: Text-to-speech service
+      description: >-
+        The TTS service to call. It must accept entity_id + message
+        (e.g. tts.google_translate_say, or tts.cloud_say on Home Assistant Cloud).
+      default: tts.google_translate_say
+      selector:
+        text: {}
+    debounce_minutes:
+      name: Debounce (minutes)
+      description: >-
+        The AQI must stay across the threshold this long before announcing — prevents
+        repeat alerts from readings that flicker around the line. Set 0 to announce immediately.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 180
+          step: 1
+          unit_of_measurement: min
+    above_message:
+      name: Message — above threshold
+      description: Spoken when the AQI rises above the threshold.
+      default: "Level 4. Level 4. The AQI is now {{ states(aqi_sensor) | int }}."
+      selector:
+        text:
+          multiline: true
+    below_message:
+      name: Message — below threshold
+      description: Spoken when the AQI drops back below the threshold.
+      default: "The AQI is now below {{ threshold }}."
+      selector:
+        text:
+          multiline: true
+
+mode: restart
+
+variables:
+  aqi_sensor: !input aqi_sensor
+  threshold: !input threshold
+  speakers: !input speakers
+  tts_service: !input tts_service
+  above_message: !input above_message
+  below_message: !input below_message
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input aqi_sensor
+    above: !input threshold
+    for:
+      minutes: !input debounce_minutes
+    id: above
+  - platform: numeric_state
+    entity_id: !input aqi_sensor
+    below: !input threshold
+    for:
+      minutes: !input debounce_minutes
+    id: below
+
+condition: []
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: above
+        sequence:
+          - service: "{{ tts_service }}"
+            data:
+              entity_id: "{{ speakers }}"
+              message: "{{ above_message }}"
+      - conditions:
+          - condition: trigger
+            id: below
+        sequence:
+          - service: "{{ tts_service }}"
+            data:
+              entity_id: "{{ speakers }}"
+              message: "{{ below_message }}"
